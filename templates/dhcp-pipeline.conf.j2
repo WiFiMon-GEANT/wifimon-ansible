@@ -1,0 +1,55 @@
+input {
+    pipeline { address => dhcplogs }
+}
+ 
+filter {
+    dissect {
+        mapping => {
+            "message" => "%{} DHCPACK on %{ip} to %{mac} %{}"
+        }
+ 
+        remove_field => [
+            "logtype",
+            "message",
+            "@version"
+        ]
+    }
+
+    date {
+        match => [ "Event-Timestamp", "MMM d yyyy HH:mm:ss ZZZ", "MMM dd yyyy HH:mm:ss ZZZ" ]
+        target => "DHCP-Timestamp"
+        remove_field => [ "Event-Timestamp" ]
+    }
+ 
+    if "beats_input_codec_plain_applied" in [tags] {
+        mutate { remove_tag => ["beats_input_codec_plain_applied"] }
+    }
+ 
+    fingerprint {
+        key => "{{ fingerprint_key }}"
+        method => "SHA512"
+        source => "ip"
+        target => "ip"
+    }
+ 
+    fingerprint {
+        key => "{{ fingerprint_key }}"
+        method => "SHA512"
+        source => "mac"
+        target => "mac"
+    }
+}
+
+output {
+    elasticsearch {
+        ssl => true
+	ssl_certificate_verification => true
+	cacert => "/etc/ssl/certs/ca-certificates.crt"
+        user => "logstash_writer"
+        password => "{{ logstash_writer_user_password }}"
+        hosts => ["https://{{ was_server_hostname }}-elastic.{{ was_server_domainname }}:443"]
+        ilm_enabled => true
+        ilm_policy => "wifimon_policy"
+        index => "dhcplogs"
+    }
+}

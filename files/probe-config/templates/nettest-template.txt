@@ -1,0 +1,13 @@
+#!/bin/bash
+​
+if pidof -x $(basename $0) > /dev/null; then
+  for p in $(pidof -x $(basename $0)); do
+    if [ $p -ne $$ ]; then
+      echo "Script $0 is already running: exiting"
+      exit 1
+    fi
+  done
+fi
+​
+export DISPLAY=:0
+timeout 60 firefox-esr --new-tab {{ protocol }}://{{ wts }}:{{ port }}/wifimon/measurements/nettest{{ probe_number }}.html

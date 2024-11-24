@@ -1,0 +1,184 @@
+- hosts: WTS
+  remote_user: root
+  gather_facts: yes
+  vars_files:
+    - ../vars/main.yml
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  tasks:
+    - name: Print error if not supported linux distribution is used for WAS_KIBANA installation
+      fail: msg="You are trying to install WAS on not supported linux distribution. Please read the README file for details"
+      when:
+        - ansible_distribution_release != 'noble'
+        - ansible_distribution_release != 'jammy'
+        - ansible_distribution_release != 'focal'
+        - ansible_distribution_release != 'bookworm'
+        - ansible_distribution_release != 'bullseye'
+
+    - name: Print error if ansible versions is not equal or greater than 2.10.0
+      fail: msg="Your ansible versions is older than 2.10.0. Ansible version 2.10 or greater is requred to run this playbook. Please read the README file for details"
+      when: ansible_version.full is version('2.10.0', '<', strict=True)
+
+    - name: Print error if ansible versions is not equal or greater than 2.10.0
+      fail: msg="Your ansible versions is older than 2.10.0. Ansible version 2.10 or greater is requred to run this playbook. Please read the README file for details"
+      when: ansible_version.full is version('2.10.0', '<', strict=True)
+
+    - name: Ensure dig and gpg are installed
+      apt:
+        update_cache: true
+        name:
+          - dnsutils
+          - gpg
+        state: present
+      register: dnsutils_gpg_install_result
+      until: dnsutils_gpg_install_result is not failed
+      retries: 30
+      delay: 20
+
+    - name: Get WTS servers public IP
+      uri:
+        url: http://whatismyip.akamai.com
+        method: GET
+        timeout: 8
+        return_content: yes
+      changed_when: false
+      register: public_ip
+      until: public_ip.status == 200
+      retries: 3
+      delay: 10
+
+    - name: Resolve A record for {{ wts_server_hostname }}.{{ was_server_domainname }}
+      shell: |
+        dig +short {{ wts_server_hostname }}.{{ was_server_domainname }}
+      register: wts_dns_record
+
+    - name: Print error if no or wrong DNS record found for WTS FQDN
+      fail: msg="There is no or wrong DNS record for {{ was_server_hostname }}.{{ was_server_domainname }}. It must be resolve to {{ public_ip.content }} which is not the case. Please read README for requirements"
+      when: wts_dns_record.stdout != public_ip.content
+
+    - name: Set a FQDN hostname
+      hostname:
+        name: "{{ wts_server_hostname }}"
+
+    - name: Check cloud-init file exists
+      stat:
+        path: /etc/cloud/cloud.cfg
+      register: cloud_cfg_file
+
+    - name: Do not manage etc_hosts from cloud-init
+      lineinfile:
+        path: /etc/cloud/cloud.cfg
+        regexp: "{{ item }}"
+        state: absent
+      with_items:
+        - 'manage_etc_hosts'
+        - 'update_etc_hosts'
+        - 'update_hostname'
+        - 'set_hostname'
+      when: cloud_cfg_file.stat.exists
+
+    - name: Install system updates
+      apt:
+        upgrade: dist
+        dpkg_options: 'force-confold,force-confdef'
+
+    - name: Ensure all required packages are installed
+      apt:
+        update_cache: false
+        name: 
+          - curl
+          - nginx
+          - certbot
+          - python3-certbot-nginx
+          - python3-minimal
+          - unzip
+        state: present
+        dpkg_options: 'force-confold,force-confdef'
+ 
+    - name: Remove useless packages from the cache
+      apt:
+        autoclean: yes
+
+    - name: Remove dependencies that are no longer required
+      apt:
+        autoremove: yes
+
+    - name: Create WTS nginx document_root
+      file:
+        path: /var/www/wts/wifimon
+        state: directory
+        mode: '0755'
+
+    - name: Download WTS zip file
+      get_url:
+        url: https://s3.grena.ge/wts/wts.zip
+        dest: /tmp/wts.zip
+
+    - name: Unzip WTS zip file
+      unarchive:
+        src: /tmp/wts.zip
+        dest: /var/www/wts/wifimon
+        remote_src: yes
+
+    - name: Find and register all files in /var/www/wts/wifimon to replace WTS_FQDN with {{ wts_server_hostname }}.{{ was_server_domainname }}
+      find:
+        path: /var/www/wts/wifimon/
+        file_type: file
+        recurse: yes
+      register: wts_files
+    
+    - name: Replace WTS_FQDN string with {{ wts_server_hostname }}.{{ was_server_domainname }} in WTS files
+      replace:
+        path: "{{ item.path }}"
+        regexp: 'WTS_FQDN'
+        replace: "{{ wts_server_hostname }}.{{ was_server_domainname }}"
+        backup: no
+      with_items: "{{ wts_files.files }}"
+      no_log: true
+    
+    - name: Replace WAS_FQDN string with {{ was_server_hostname }}.{{ was_server_domainname }} in WTS files
+      replace:
+        path: "{{ item.path }}"
+        regexp: 'WAS_FQDN'
+        replace: "{{ was_server_hostname }}.{{ was_server_domainname }}"
+        backup: no
+      with_items: "{{ wts_files.files }}"
+      no_log: true
+
+    - name: Remove WTS zip archive
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - /tmp/wts.zip
+
+    - name: Copy WTS nginx configuration file
+      template:
+        src: ../templates/wts.conf.j2
+        dest: /etc/nginx/sites-available/wts.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Enable WTS nginx configuration files
+      file:
+        src: /etc/nginx/sites-available/wts.conf
+        dest: /etc/nginx/sites-enabled/wts.conf
+        owner: root
+        group: root
+        state: link
+
+    - name: Disable nginx default config
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+
+    - name: Reload nginx service
+      service:
+        name: nginx
+        enabled: yes
+        state: reloaded
+
+    - name: Obtain letsencrypt certificate
+      shell: |
+        certbot --nginx --non-interactive --agree-tos --redirect -m "{{ letsencrypt_admin_email }}" -d "{{ wts_server_hostname }}"."{{ was_server_domainname }}"

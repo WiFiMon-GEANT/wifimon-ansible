@@ -1,0 +1,34 @@
+# Password variable values below are just examples. Don not use them in production! Set your own secure passwords!
+---
+# Uncoment and set variable elasticsearch_kibana_version below if you wish to install specific versions of elasticsearch/kibana/logstash. These 3 packages will be prevent from being upgraded. The value of this variable can be float, or complex version number. For example 8.1, or 8.1.2. Currently only elasticsearch/kibana/logstash versions 8.x are supported. If you do not define this variable, latest 8.x version packages will be installed.
+#elasticsearch_kibana_version: 8.1.2
+# Please set the value of variable <wifimon_agent_version> below to 2.0.0 or higher. This playbook will not work with older versions
+wifimon_agent_version: 2.3.0
+# It is necessary to set following variable (postgresl_version). Leave it to default value if you are not sure, or you do not requere any specific version of PostgreSQL
+postgresql_version: 16
+# Do not forgot to set value of following variable to PostgreSQL servers address if you use multi node installation method. For all-in-one installation it must be localhost
+wifimon_database_host: localhost
+wifimon_database_name: wifimon_database
+wifimon_database_user: wifimon_user
+wifimon_database_user_pass: wifimonpass
+wifimon_admin_email: admin@test.com
+wifimon_admin_pass: th1sIs@Secret
+# The value of <letsencrypt_admin_mail> variable below must be an real email address
+letsencrypt_admin_email: admins@test.com
+was_server_hostname: your_was_hostname_here
+was_server_domainname: your_domain_name_here.com
+wts_server_hostname: your_wts_hostname_here
+# Password for elasticsearch system user
+elastic_elasticsearch_password: Elastic_pass_123
+# Password for kibana system user
+kibana_elasticsearch_password: Kibana_pass_123
+# Password for logstash system user
+logstash_system_user_password: Logstash_pass_123
+# Password for logstash log writer user
+logstash_writer_user_password: Logstash_pass_123
+# SHA key for encryption of fields in radius/dhcp logs. Please do not use default value in production! Set your own key. You can generate the key by running command: openssl rand -hex 24
+fingerprint_key: 1b34947577646ec59d2ba874c62a90a80759eac0ada9715e
+# Secret for Hardware/Software probes. Please do not use default value in production! Set your own key. You can generate the key by running command: openssl rand -hex 24`
+probe_secret: 3fe995d33279accd93f5d2b861efdf79f7d8183742ade864
+# Secret for anomaly/alerts. Please do not use default value in production! Set your own key. You can generate the key by running command: openssl rand -hex 24`
+analysis_secret: 2500f740da5c7bbf4394bca8eed7b26f90a03f129d994d12

@@ -1,0 +1,23 @@
+[Unit]
+Description=anomaly service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/python3 app.py
+WorkingDirectory=/root/alarm
+Restart=on-failure
+StandardOutput=journal
+StandardError=journal
+KillSignal=SIGKILL
+TimeoutStopSec=20
+RestartSec=5
+StartLimitInterval=30
+StartLimitBurst=10
+LimitNOFILE=50000
+LimitNPROC=50000
+
+[Install]
+WantedBy=multi-user.target

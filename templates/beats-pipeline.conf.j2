@@ -1,0 +1,15 @@
+input {
+    beats {
+        host => "127.0.0.1"
+        port => 5045
+        ssl => false
+    }
+}
+ 
+output {
+    if ([logtype] == "radius") {
+        pipeline { send_to => radiuslogs }
+    } else { # logtype is dhcp
+        pipeline { send_to => dhcplogs }
+    }
+}

@@ -1,0 +1,23 @@
+[Unit]
+Description=looking-glass service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/root/looking-glass/bin/python3 app.py
+WorkingDirectory=/root/looking-glass
+Restart=on-failure
+StandardOutput=journal
+StandardError=journal
+KillSignal=SIGKILL
+TimeoutStopSec=20
+RestartSec=5
+StartLimitInterval=30
+StartLimitBurst=10
+LimitNOFILE=50000
+LimitNPROC=50000
+
+[Install]
+WantedBy=multi-user.target

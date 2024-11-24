@@ -1,0 +1,4 @@
+02,12,22,32,42,52 * * * * sleep $(shuf -n 1 -i 10-30) && /usr/local/bin/nettest.sh > /dev/null
+04,14,24,34,44,54 * * * * sleep $(shuf -n 1 -i 10-30) && /usr/local/bin/boomerang.sh > /dev/null
+06,16,26,36,46,56 * * * * sleep $(shuf -n 1 -i 10-30) && /usr/local/bin/speedtest.sh > /dev/null
+

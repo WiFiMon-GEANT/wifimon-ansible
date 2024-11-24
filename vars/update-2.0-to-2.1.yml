@@ -1,0 +1,6 @@
+# Please set the value of variable <wifimon_agent_version> on which you want to update
+wifimon_agent_version: 2.1.0
+was_server_hostname: your_was_hostname_here
+was_server_domainname: your_domain_name_here.com
+# Password for elasticsearch system user. Please alway use the password you set durin WAS installation.
+elastic_elasticsearch_password: Elastic_pass_123

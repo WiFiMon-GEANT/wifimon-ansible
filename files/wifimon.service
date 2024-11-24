@@ -1,0 +1,24 @@
+[Unit]
+Description=wifimon service
+After=network.target
+
+[Service]
+Type=forking
+User=wifimon
+Group=wifimon
+ExecStart=/bin/sh /usr/lib/wifimon/start.sh
+WorkingDirectory=/usr/lib/wifimon
+SuccessExitStatus=200
+Restart=on-failure
+StandardOutput=journal
+StandardError=journal
+KillSignal=SIGKILL
+TimeoutStopSec=20
+RestartSec=5
+StartLimitInterval=30
+StartLimitBurst=10
+LimitNOFILE=50000
+LimitNPROC=50000
+
+[Install]
+WantedBy=multi-user.target

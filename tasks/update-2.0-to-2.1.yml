@@ -1,0 +1,142 @@
+---
+- hosts: WAS
+  remote_user: root
+  gather_facts: yes
+  vars_files:
+    - ../vars/update-2.0-to-2.1.yml
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  tasks:
+    - name: Print error if not supported linux distribution is used for WAS installation
+      fail: msg="You are trying to install WAS on not supported linux distribution. Please read the README file for details"
+      when:
+        - ansible_distribution_release != 'jammy'
+        - ansible_distribution_release != 'focal'
+        - ansible_distribution_release != 'buster'
+        - ansible_distribution_release != 'bullseye'
+    
+    - name: Print error if ansible versions is not equal or greater than 2.10.0
+      fail: msg="Your ansible versions is older than 2.10.0. Ansible version 2.10 or greater is requred to run this playbook. Please read the README file for details"
+      when: ansible_version.full is version('2.10.0', '<', strict=True)
+    
+    - name: Print error if not enough CPU/RAM resources available on target server
+      fail: msg="You are trying to install WAS on server with lower CPU/RAM resources than required. Please read the README file for details"
+      when: (ansible_processor_nproc < 4) or (ansible_memtotal_mb <= 7800)
+    
+    - name: Install system updates
+      apt:
+        upgrade: dist
+        update_cache: true
+        dpkg_options: 'force-confold,force-confdef'
+    
+    - name: Restart salt-master service
+      systemd:
+        daemon_reload: yes
+        name: salt-master
+        state: restarted
+        enabled: yes
+    
+    - name: Update wifimon-agent package
+      apt:
+        deb: https://s3.grena.ge/wifimon-agent/wifimon-agent-{{ wifimon_agent_version }}.deb
+        dpkg_options: 'force-confold,force-confdef'
+    
+    - name: Remove useless packages from the cache
+      apt:
+        autoclean: yes
+    
+    - name: Remove dependencies that are no longer required
+      apt:
+        autoremove: yes
+    
+    - name: Restart elasticsearch service
+      service:
+        name: elasticsearch
+        enabled: yes
+        state: restarted
+      register: elastic_service_status
+      until: elastic_service_status is not failed
+      delay: 30
+      retries: 2
+    
+    - name: Wait for elasticsearch service to become up and running
+      uri:
+        url: 'https://{{ was_server_hostname }}-elastic.{{ was_server_domainname }}/_cluster/health'
+        user: elastic
+        password: "{{ elastic_elasticsearch_password }}"
+        method: GET
+        force_basic_auth: yes
+        timeout: 10
+        status_code: 200
+      register: elastic_status
+      until: elastic_status.status == 200
+      delay: 30
+      retries: 2
+      no_log: true
+    
+    - name: Restart kibana service
+      service:
+        name: kibana 
+        enabled: yes
+        state: restarted
+      register: kibana_service_status
+      until: kibana_service_status is not failed
+      delay: 30
+      retries: 2
+    
+    - name: Wait for kibana service to become up and running
+      uri:
+        url: 'https://{{ was_server_hostname }}-kibana.{{ was_server_domainname }}/api/status'
+        user: elastic
+        password: "{{ elastic_elasticsearch_password }}"
+        method: HEAD
+        force_basic_auth: yes
+        timeout: 10
+        status_code: 200
+      register: kibana_status
+      until: kibana_status.status == 200
+      delay: 30
+      retries: 10
+      no_log: true
+    
+    - name: Restart logstash service
+      service:
+        name: logstash
+        enabled: yes
+        state: restarted
+      register: logstash_service_status
+      until: logstash_service_status is not failed
+      delay: 30
+      retries: 2
+    
+    - name: Wait for logstash service to become up and running
+      uri:
+        url: 'http://localhost:9600/?pretty'
+        method: HEAD
+        timeout: 10
+        status_code: 200
+      register: logstash_status
+      until: logstash_status.status == 200
+      delay: 30
+      retries: 10
+    
+    - name: Restart wifimon service
+      systemd:
+        daemon_reload: yes
+        name: wifimon
+        state: restarted
+        enabled: yes
+    
+    - name: Wait for wifimon service to become up and running
+      uri:
+        url: 'https://{{ was_server_hostname }}-ui.{{ was_server_domainname }}/login'
+        method: HEAD
+        timeout: 10
+      register: wifimon_http_get_code
+      until: wifimon_http_get_code.status == 200
+      delay: 30
+      retries: 10
+    
+    - name: WAS UI URL
+      debug:
+        msg: 'WAS update to version {{ wifimon_agent_version }} success. Access your WAS UI at:   https://{{ was_server_hostname }}-ui.{{ was_server_domainname }}'

@@ -1,0 +1,14 @@
+stream {
+        upstream logstash {
+                server 127.0.0.1:5045;
+        }
+
+        server {
+                listen 5044 ssl;
+                proxy_pass logstash;
+
+            ssl_certificate /etc/letsencrypt/live/{{ was_server_hostname }}-logstash.{{ was_server_domainname }}/fullchain.pem;
+            ssl_certificate_key /etc/letsencrypt/live/{{ was_server_hostname }}-logstash.{{ was_server_domainname }}/privkey.pem;
+    }
+}
+

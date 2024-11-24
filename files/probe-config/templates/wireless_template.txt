@@ -1,0 +1,254 @@
+#!/usr/bin/python3
+
+import sys
+import subprocess
+import datetime
+import requests
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+import json
+
+def return_command_output(command):
+    proc = subprocess.Popen(command, stdout = subprocess.PIPE, shell = True)
+    (out, err) = proc.communicate()
+    output = out.rstrip('\n'.encode('utf8'))
+    return output
+
+def get_mac(iface):
+    command = "cat /sys/class/net/" + str(iface) + "/address"
+    mac = return_command_output(command).decode('utf8')
+    mac = mac.replace(":", "-")
+    return mac
+
+def find_wlan_iface_name():
+    command = "printf '%s\n' /sys/class/net/*/wireless | awk -F'/' '{print $5 }'"
+    wlan_iface_name = return_command_output(command)
+    return wlan_iface_name.decode('utf8')
+
+def get_encryption():
+    command = "sudo wpa_cli status" + "|grep key_mgmt" + "|awk -F '\=' {'print $2'}"
+    enc = return_command_output(command).decode('utf8')
+    return enc
+
+def parse_iwconfig(iface):
+    bit_rate = return_command_output("sudo iwconfig " + iface + " | grep Bit | awk '{print $2}' | sed 's/Rate=//'").decode('utf8')
+    tx_power = return_command_output("sudo iwconfig " + iface + " | grep Bit | awk '{print $4}' | sed 's/Tx-Power=//'").decode('utf8')
+    link_quality = return_command_output("sudo iwconfig " + iface + " | grep Link | awk '{print $2}' | sed 's/Quality=//'").decode('utf8')
+    link_quality = link_quality.split("/")[0]
+    signal_level = return_command_output("sudo iwconfig " + iface + " | grep Link | awk '{print $4}' | sed 's/level=//'").decode('utf8')
+    accesspoint = return_command_output("sudo iwconfig " + iface + " | grep Mode | awk '{print $6}' | sed 's/Point: //'").decode('utf8')
+    accesspoint = accesspoint.replace(":", "-")
+    essid = return_command_output("sudo iwconfig " + iface + " | grep ESSID | awk '{print $4}' | sed 's/ESSID://'").decode('utf8')
+    essid = essid.replace("\"", "")
+    return bit_rate, tx_power, link_quality, signal_level, accesspoint, essid
+
+def parse_iwlist(iface, accesspoint):
+    information = {}
+    command = "sudo iwlist " + iface + " scan | grep -E \"Cell|Frequency|Quality|ESSID\""
+    aps = return_command_output(command).decode("utf8")
+    aps = aps.split("\n")
+
+    cell_indices = list()
+    for index in range(0, len(aps)):
+        line_no_whitespace = ' '.join(aps[index].split())
+        parts = line_no_whitespace.split()
+        if parts[0] == "Cell":
+            cell_indices.append(index)
+
+    for index in cell_indices:
+        line0 = ' '.join(aps[index].split())
+        ap_mac = line0.split()[-1]
+        ap_mac = ap_mac.replace(":", "-")
+        information[ap_mac] = {}
+        line1 = ' '.join(aps[index + 1].split())
+        frequency = line1.split()[0].split(":")[1]
+        information[ap_mac]["frequency"] = str(frequency)
+        line2 = ' '.join(aps[index + 2].split())
+        parts = line2.split()
+        information[ap_mac]["drillTest"] = float(parts[2].split("=")[1])
+        line3 = ' '.join(aps[index + 3].split())
+        parts = line3.split(":")
+        information[ap_mac][str(parts[1].replace('"', ''))] = information[ap_mac]["drillTest"]
+
+    return information
+
+def convert_info_to_json(accesspoint, essid, mac, enc, bit_rate, tx_power, link_quality, signal_level, probe_no, information, location_name, test_device_location_description, nat_network, system_dictionary, number_of_users, pingparser_result):
+    overall_dictionary = {}
+    # values from ping received through pingparser github tool
+    overall_dictionary["wts"] = str(pingparser_result["destination"])
+    packet_transmit = int(float(pingparser_result["packet_transmit"]))
+    overall_dictionary["pingPacketTransmit"] = str(packet_transmit)
+    packet_receive = int(float(pingparser_result["packet_receive"]))
+    overall_dictionary["pingPacketReceive"] = str(packet_receive)
+    packet_loss_rate = int(float(pingparser_result["packet_loss_rate"]))
+    overall_dictionary["pingPacketLossRate"] = str(packet_loss_rate)
+    packet_loss_count = int(float(pingparser_result["packet_loss_count"]))
+    overall_dictionary["pingPacketLossCount"] = str(packet_loss_count)
+    try:
+        rtt_min = int(float(pingparser_result["rtt_min"]))
+        rtt_avg = int(float(pingparser_result["rtt_avg"]))
+        rtt_max = int(float(pingparser_result["rtt_max"]))
+        rtt_mdev = int(float(pingparser_result["rtt_mdev"]))
+        packet_duplicate_rate = int(float(pingparser_result["packet_duplicate_rate"]))
+        packet_duplicate_count = int(float(pingparser_result["packet_duplicate_count"]))
+    except:
+        # -1 indicates failure to reach the wts and calculate the above values
+        rtt_min = -1
+        rtt_avg = -1
+        rtt_max = -1
+        rtt_mdev = -1
+        packet_duplicate_rate = -1
+        packet_duplicate_count = -1
+    overall_dictionary["pingRttMin"] = str(rtt_min)
+    overall_dictionary["pingRttAvg"] = str(rtt_avg)
+    overall_dictionary["pingRttMax"] = str(rtt_max)
+    overall_dictionary["pingRttMdev"] = str(rtt_mdev)
+    overall_dictionary["pingPacketDuplicateRate"] = str(packet_duplicate_rate)
+    overall_dictionary["pingPacketDuplicateCount"] = str(packet_duplicate_count)
+    # values from iw* commands
+    overall_dictionary["macAddress"] = "\"" + str(mac) + "\""
+    overall_dictionary["encType"] = "\"" + str(enc) + "\""
+    overall_dictionary["accesspoint"] = "\"" + str(accesspoint) + "\""
+    overall_dictionary["essid"] = "\"" + str(essid) + "\""
+    bit_rate = int(float(bit_rate))
+    overall_dictionary["bitRate"] = str(bit_rate)
+    tx_power = int(float(tx_power))
+    overall_dictionary["txPower"] = str(tx_power)
+    link_quality = int(float(link_quality))
+    overall_dictionary["linkQuality"] = str(link_quality)
+    signal_level = int(float(signal_level))
+    overall_dictionary["signalLevel"] = str(signal_level)
+    overall_dictionary["probeNo"] = str(probe_no)
+    information = json.dumps(information)
+    overall_dictionary["monitor"] = information
+    # values defined by administrator
+    overall_dictionary["locationName"] = "\"" + str(location_name) + "\""
+    overall_dictionary["testDeviceLocationDescription"] = "\"" + str(test_device_location_description) + "\""
+    overall_dictionary["nat"] = "\"" + str(nat_network) + "\""
+    # values received through arp-scan command
+    overall_dictionary["numberOfUsers"] = "\"" + str(number_of_users) + "\""
+    system_dictionary = json.dumps(system_dictionary)
+    # values received from system commands (memory, cpu, disk)
+    overall_dictionary["system"] = system_dictionary
+    json_data = json.dumps(overall_dictionary)
+    return json_data
+
+def processing_info():
+    command = '''echo "$(iostat | head -1 | awk '{print $1}')"'''
+    operating_system = return_command_output(command).decode('utf8')
+    command = '''echo "$(iostat | head -1 | awk '{print $2}')"'''
+    driver_version = return_command_output(command).decode('utf8')
+    command = '''echo "$(iostat | head -1 | awk '{print $6}' | cut -c 2-)"'''
+    total_cores = return_command_output(command).decode('utf8')
+    command = '''echo "$(vmstat 1 2|tail -1|awk '{print $15}')"'''
+    cpu_utilization = 100 - int(return_command_output(command).decode('utf8'))
+    command = '''echo "$(vmstat --stats | grep 'total memory' | tail -1 | awk '{print $1}')"'''
+    total_memory = return_command_output(command).decode('utf8')
+    command = '''echo "$(vmstat --stats | grep 'used memory' | tail -1 | awk '{print $1}')"'''
+    used_memory = return_command_output(command).decode('utf8')
+    command = '''echo "$(df -h / | tail -1 | awk '{print $2}')"'''
+    total_disk_size = return_command_output(command).decode('utf8')
+    command = '''echo "$(df -h / | tail -1 | awk '{print $3}')"'''
+    used_disk_size = return_command_output(command).decode('utf8')
+
+    system_dictionary = {}
+    system_dictionary["operatingSystem"] = str(operating_system)
+    system_dictionary["driverVersion"] = str(driver_version)
+    system_dictionary["totalCores"] = str(total_cores) 
+    system_dictionary["cpuUtilization"] = str(cpu_utilization)
+    system_dictionary["totalMemory"] = str(total_memory) 
+    system_dictionary["usedMemory"] = str(used_memory)
+    system_dictionary["totalDiskSize"] = str(total_disk_size) 
+    system_dictionary["usedDiskSize"] = str(used_disk_size)
+
+    return system_dictionary
+
+def stream_data(data):
+    headers = {'content-type':"application/json"}
+    try:
+        session = requests.Session()
+        session.verify = False
+        session.post(url='{{ protocol }}://{{ was }}:{{ port }}/wifimon/probes/', data=data, headers=headers, timeout=30)
+    except:
+        pass
+
+def parse_arpscan(result):
+    lines = result.split("\n")
+    lines.pop(0)
+    lines.pop(0)
+    space_line = lines.index('')
+    return space_line
+
+def arpscanner():
+    command = "sudo arp-scan --localnet"
+    arpscan_result = return_command_output(command).decode('utf8')
+    number_of_users = parse_arpscan(arpscan_result)
+    return number_of_users
+
+def pingparser(wts):
+    command = 'ping -c 10 ' + str(wts)
+    ping_results = return_command_output(command).decode('utf8')
+    ping_parts = ping_results.split("\n")
+
+    for item in ping_parts:
+        if item[0:3] == "---":
+            start_parsing_from = 1 + ping_parts.index(item)
+
+    packets_part = ping_parts[start_parsing_from].split(",")
+    packet_transmit = int(packets_part[0].split(" ")[0], 10)
+    packet_receive = int(packets_part[1].split(" ")[1], 10)
+    packet_loss_count = packet_transmit - packet_receive
+    packet_loss_rate = packet_loss_count / packet_transmit
+
+    timing_part = ping_parts[start_parsing_from + 1].split("=")[1]
+    timing_part_no_whitespace = timing_part[1:]
+    timing_without_unit = timing_part_no_whitespace.split(" ")[0]
+    times = timing_without_unit.split("/")
+    rtt_max = times[0]
+    rtt_min = times[1]
+    rtt_avg = times[2]
+    rtt_mdev = times[3]
+
+    # unused values
+    packet_duplicate_count = -1
+    packet_duplicate_rate = -1
+
+    # construct a dict to hold the results
+    result_dict = {}
+    result_dict["destination"] = wts
+    result_dict["packet_transmit"] = packet_transmit
+    result_dict["packet_receive"] = packet_receive
+    result_dict["packet_loss_count"] = packet_loss_count
+    result_dict["packet_loss_rate"] = packet_loss_rate
+    result_dict["rtt_max"] = rtt_max
+    result_dict["rtt_min"] = rtt_min
+    result_dict["rtt_avg"] = rtt_avg
+    result_dict["rtt_mdev"] = rtt_mdev
+    result_dict["packet_duplicate_count"] = packet_duplicate_count
+    result_dict["packet_duplicate_rate"] = packet_duplicate_rate
+
+    return result_dict
+
+def set_location_information():
+    location_name = "{{ location_name }}"
+    test_device_location_description = "{{ test_device_location_description }}"
+    nat_network = "{{ nat_network}}"
+    return location_name, test_device_location_description, nat_network
+
+def general_info():
+    system_dictionary = processing_info()
+    location_name, test_device_location_description, nat_network = set_location_information()
+    iface_name = find_wlan_iface_name()
+    mac = get_mac(iface_name)
+    enc = get_encryption()
+    bit_rate, tx_power, link_quality, signal_level, accesspoint, essid = parse_iwconfig(iface_name)
+    information = parse_iwlist(iface_name, accesspoint)
+    probe_no = "{{ probe_number }}"
+    wts = "{{ wts }}"
+    number_of_users = arpscanner()
+    pingparser_result = pingparser(wts)
+    json_data = convert_info_to_json(accesspoint, essid, mac, enc, bit_rate, tx_power, link_quality, signal_level, probe_no, information, location_name, test_device_location_description, nat_network, system_dictionary, number_of_users, pingparser_result)
+    stream_data(json_data)
+
+if __name__ == "__main__":
+    general_info()

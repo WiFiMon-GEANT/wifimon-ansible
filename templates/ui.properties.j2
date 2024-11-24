@@ -1,0 +1,42 @@
+########################## WIFIMON GUI CONFIGURATION ############################
+spring.config.use-legacy-processing=true
+
+######## application properties ########
+server.address=127.0.0.1
+server.port=8441
+# By default, WiFiMon GUI listens at port 8441. If you want, you may change this port.
+#logging.file=./logs/ui.log
+# Default location to WiFiMon GUI logs is "./logs/ui.log". If you want to change it, uncomment and set a different location/file name
+
+######## postgres properties ########
+spring.datasource.url=jdbc:postgresql://{{ wifimon_database_host }}:5432/{{ wifimon_database_name }}
+#e.g. spring.datasource.url=jdbc:postgresql://localhost:5432/wifimon_database
+spring.datasource.username={{ wifimon_database_user }}
+spring.datasource.password={{ wifimon_database_user_pass }}
+
+######## kibana properties ########
+server.host.name={{ was_server_hostname }}-kibana.{{ was_server_domainname }}
+# Insert the FQDN Kibana listens on
+kibana.protocol=https
+# Insert http or https based on your GUI configuration
+kibana.port=443
+# e.g. kibana.port=5601
+lookingglass.host.name=https://{{ was_server_hostname }}-looking-glass.{{ was_server_domainname }}
+probestate.host.name=https://{{ was_server_hostname }}-probe-state.{{ was_server_domainname }}
+
+######## flask properties ########
+flask.host.name=https://{{ was_server_hostname }}-flask.{{ was_server_domainname }}
+anomaly.host.name=https://{{ was_server_hostname }}-anomaly.{{ was_server_domainname }}
+
+####### Version Checking #######
+## Insert "no" in order not to check for WiFiMon updated versions on startup (Default is "yes")
+version.check=yes
+# Insert the VM from which the most recent version information will be downloaded
+#vmUrl=https://fl-5-205.unil.cloud.switch.ch/version.json
+vmUrl=https://raw.githubusercontent.com/WiFiMon-GEANT/wifimon/master/version.json
+
+####### etc #######
+spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+spring.jpa.properties.hibernate.temp.use_jdbc_metadata_defaults = false
+spring.jpa.generate-ddl=false
+spring.jpa.show-sql=true

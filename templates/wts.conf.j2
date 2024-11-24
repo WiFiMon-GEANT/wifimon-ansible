@@ -1,0 +1,16 @@
+server {
+        listen 80;
+        server_name {{ wts_server_hostname }}.{{ was_server_domainname }};
+
+        access_log /var/log/nginx/wts-access.log;
+        error_log /var/log/nginx/wts-error.log;
+
+        root /var/www/wts;
+
+        location / {
+            add_header 'Access-Control-Allow-Origin' '*' always;
+            add_header 'Access-Control-Allow-Methods' 'POST, GET, OPTIONS, DELETE, PUT'  always;
+            add_header 'Access-Control-Max-Age' '1000'  always;
+            add_header 'Access-Control-Allow-Headers' 'X-Requested-With, Content-Type, origin, authorization, accept, client-security-token'  always;
+        }
+}

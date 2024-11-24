@@ -1,0 +1,70 @@
+<html>
+<head>
+   <title>Probe Configuration Page</title>
+   <meta charset = "UTF-8">
+   <meta name = "description" content = "WiFiMon Hardware Probe Configuration Page">
+   <meta name = "viewport" content = "width = device-width, initial-scale = 1.0">
+   <link rel = "stylesheet" type = "text/css" href = "{{ url_for('static',filename='styles/mystyle.css') }}">
+</head>
+
+<body class = "center">
+    <h1 id = "heading">WiFiMon Analysis Page</h1>
+    <br/>
+    <p class = "guidance-text">Fill the following information to request result analysis</p>
+    <br/>
+
+    <form method="POST">
+    
+      <div class = "questions">
+        <h2 class = "steps">Step 1</h2>
+        <p class = "descriptions">The window size specifies how many previous measurements to consider</p>
+        <p class = "sub-descriptions"> Insert the window size (integer, 1 to 30): <input type = "text" name = "window"> </p>
+      </div>
+
+      <span class = "center arrows">&#11015;</span>
+
+      <div class = "questions">
+        <h2 class = "steps">Step 2</h2>
+        <p class = "descriptions">The standard deviation parameter specifies how sensitive the analysis will be</p>
+        <p class = "sub-descriptions">Insert standard deviation (float, 1 to 20): <input type = "text" name = "std"></p>
+      </div>
+
+      <span class = "center arrows">&#11015;</span>
+
+      <div class = "questions">
+        <h2 class = "steps">Step 3</h2>
+        <p class = "descriptions">How many previous days do you want to include?</p>
+        <p class = "sub-descriptions">Insert number of days (integer number): <input type = "text"  name = "days"></p>
+      </div>
+
+      <span class = "center arrows">&#11015;</span>
+
+      <div class = "questions">
+        <h2 class = "steps">Step 4</h2>
+        <p class = "descriptions">Which time series do you want to inspect?</p>
+        <p class = "sub-descriptions">Insert "Download-Throughput", "Upload-Throughput", "Local-Ping" or "Jitter-Msec": <input type = "text"  name = "series"></p>
+      </div>
+
+      <span class = "center arrows">&#11015;</span>
+
+      <div class = "questions">
+        <h2 class = "steps">Step 5</h2>
+        <p class = "descriptions">What is the name of the test tool that you want to inspect?</p>
+        <p class = "sub-descriptions">Insert test-tool name (string, as defined in WTS HTML files): <input type = "text"  name = "testtool"></p>
+      </div>
+
+     <span class = "center arrows">&#11015;</span>
+
+     <div class = "questions">
+	  <h2 class = "steps">Step 6</h2>
+	  <p class = "descriptions"> Insert Authentication Token</p>
+	  <input type = "text" name = "token">
+     </div>
+
+      <input id = "submit-button" type = "submit" value = "Submit Request for Result Analysis">
+    </form>
+
+    <img class = "center" src = "/static/wifimon-logo.png" alt = "WiFiMon Logo" width = "auto" height = "auto">
+
+</body>
+</html>

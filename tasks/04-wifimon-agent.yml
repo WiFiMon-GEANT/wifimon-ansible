@@ -1,0 +1,346 @@
+- hosts: WAS
+  remote_user: root
+  gather_facts: yes
+  vars_files:
+    - ../vars/main.yml
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  tasks:
+    - name: Print error if not supported linux distribution is used for WAS installation
+      fail: msg="You are trying to install WAS on not supported linux distribution. Please read the README file for details"
+      when:
+        - ansible_distribution_release != 'noble'
+        - ansible_distribution_release != 'jammy'
+        - ansible_distribution_release != 'focal'
+        - ansible_distribution_release != 'bookworm'
+        - ansible_distribution_release != 'bullseye'
+
+    - name: Ensure dig and gpg are installed
+      apt:
+        update_cache: true
+        name:
+          - dnsutils
+          - gpg
+        state: present
+      register: dnsutils_gpg_install_result
+      until: dnsutils_gpg_install_result is not failed
+      retries: 30
+      delay: 20
+
+    - name: Get WAS servers public IP
+      uri:
+        url: http://whatismyip.akamai.com
+        method: GET
+        timeout: 8
+        return_content: yes
+      changed_when: false
+      register: public_ip
+      until: public_ip.status == 200
+      retries: 3
+      delay: 10
+
+    - name: Resolve A record for {{ was_server_hostname }}.{{ was_server_domainname }}
+      shell:
+        cmd: |
+            dig +short {{ was_server_hostname }}.{{ was_server_domainname }}
+      register: was_dns_record
+
+    - name: Resolve A record for {{ was_server_hostname }}-ui.{{ was_server_domainname }}
+      shell:
+        cmd: |
+            dig +short {{ was_server_hostname }}-ui.{{ was_server_domainname }}
+      register: was_ui_dns_record
+
+    - name: Resolve A record for {{ was_server_hostname }}-flask.{{ was_server_domainname }}
+      shell: |
+        dig +short {{ was_server_hostname }}-flask.{{ was_server_domainname }}
+      register: was_flask_dns_record
+
+    - name: Resolve A record for {{ was_server_hostname }}-anomaly.{{ was_server_domainname }}
+      shell: |
+        dig +short {{ was_server_hostname }}-anomaly.{{ was_server_domainname }}
+      register: was_anomaly_dns_record
+
+    - name: Break if no DNS record found for WAS FQDN
+      fail: msg="There is no or wrong DNS record for {{ was_server_hostname }}.{{ was_server_domainname }}. It must be resolve to {{ public_ip.stdout }} which is not the case. Please read README for requirements"
+      when: was_dns_record.stdout != public_ip.content
+    
+    - name: Print error if no or wrong DNS record found for WAS-UI FQDN
+      fail: msg="There is no or wrong DNS record for {{ was_server_hostname }}-ui.{{ was_server_domainname }}. It must be resolve to {{ public_ip.stdout }} which is not the case. Please read README for requirements"
+      when: was_ui_dns_record.stdout != public_ip.content
+    
+    - name: Print error if no or wrong DNS record found for WAS-FLASK FQDN
+      fail: msg="There is no or wrong DNS record for {{ was_server_hostname }}-flask.{{ was_server_domainname }}. It must be resolve to {{ public_ip.stdout }} which is not the case. Please read README for requirements"
+      when: was_flask_dns_record.stdout != public_ip.content
+
+    - name: Print error if no or wrong DNS record found for WAS-ANOMALY FQDN
+      fail: msg="There is no or wrong DNS record for {{ was_server_hostname }}-anomaly.{{ was_server_domainname }}. It must be resolve to {{ public_ip.stdout }} which is not the case. Please read README for requirements"
+      when: was_anomaly_dns_record.stdout != public_ip.content
+
+    - name: Add Saltstack apt signing key to Ubuntu
+      apt_key:
+        url: https://repo.saltproject.io/salt/py3/{{ ansible_distribution | lower }}/{{ ansible_distribution_version }}/amd64/SALT-PROJECT-GPG-PUBKEY-2023.gpg
+        state: present
+        keyring: /etc/apt/trusted.gpg.d/salt-archive-keyring.gpg
+      when: ansible_distribution_release == 'jammy' or ansible_distribution_release == 'focal' or ansible_distribution_release == 'noble'
+    
+    - name: Add Saltstack apt repo to Ubuntu
+      apt_repository:
+        repo: deb [signed-by=/etc/apt/trusted.gpg.d/salt-archive-keyring.gpg arch=amd64] https://repo.saltproject.io/salt/py3/{{ ansible_distribution | lower }}/{{ ansible_distribution_version }}/amd64/latest {{ ansible_distribution_release }} main
+        state: present
+        filename: salt
+        update_cache: false
+      when: ansible_distribution_release == 'jammy' or ansible_distribution_release == 'focal' or ansible_distribution_release == 'noble'
+    
+    - name: Add Saltstack apt signing key to Debian
+      apt_key:
+        url: https://repo.saltproject.io/salt/py3/{{ ansible_distribution | lower }}/{{ ansible_distribution_major_version }}/amd64/SALT-PROJECT-GPG-PUBKEY-2023.gpg
+        state: present
+        keyring: /etc/apt/trusted.gpg.d/salt-archive-keyring.gpg
+      when: ansible_distribution_release == 'bullseye' or ansible_distribution_release == 'bookworm'
+    
+    - name: Add Saltstack apt repo to Debian
+      apt_repository:
+        repo: deb [signed-by=/etc/apt/trusted.gpg.d/salt-archive-keyring.gpg arch=amd64] https://repo.saltproject.io/salt/py3/{{ ansible_distribution | lower }}/{{ ansible_distribution_major_version }}/amd64/latest {{ ansible_distribution_release }} main
+        state: present
+        filename: salt
+        update_cache: false
+      when: ansible_distribution_release == 'bullseye' or ansible_distribution_release == 'bookworm'
+
+    - name: Set a FQDN hostname
+      hostname:
+        name: "{{ was_server_hostname }}"
+
+    - name: Check cloud-init file exists
+      stat:
+        path: /etc/cloud/cloud.cfg
+      register: cloud_cfg_file
+
+    - name: Do not manage etc_hosts from cloud-init
+      lineinfile:
+        path: /etc/cloud/cloud.cfg
+        regexp: "{{ item }}"
+        state: absent
+      with_items:
+        - 'manage_etc_hosts'
+        - 'update_etc_hosts'
+        - 'update_hostname'
+        - 'set_hostname'
+      when: cloud_cfg_file.stat.exists
+
+    - name: Install system updates
+      apt:
+        upgrade: dist
+        dpkg_options: 'force-confold,force-confdef'
+
+    - name: Ensure all required packages are installed
+      apt:
+        update_cache: false
+        name: 
+          - openjdk-17-jre-headless
+          - curl
+          - nginx
+          - libnginx-mod-stream
+          - certbot
+          - python3-certbot-nginx
+          - python3-minimal
+          - python3-flask
+          - python3-dotenv
+          - python3-matplotlib
+          - python3-pandas
+          - python3-numpy
+          - python3-urllib3
+          - python3-pip
+          - salt-master
+        state: present
+        dpkg_options: 'force-confold,force-confdef'
+
+    - name: Install elasticsearch-8 python package
+      shell: |
+        PIP_BREAK_SYSTEM_PACKAGES=1 pip install elasticsearch==8.10
+
+    - name: Install wifimon-agent package
+      apt:
+        deb: https://s3.grena.ge/wifimon-agent/wifimon-agent-{{ wifimon_agent_version }}.deb
+        dpkg_options: 'force-confold,force-confdef'
+
+    - name: Remove useless packages from the cache
+      apt:
+        autoclean: yes
+
+    - name: Remove dependencies that are no longer required
+      apt:
+        autoremove: yes
+
+    - name: Enable and start salt-master service
+      systemd:
+        daemon_reload: yes
+        name: salt-master
+        state: started
+        enabled: yes
+
+    - name: Generate random key for encryption
+      shell:
+        cmd: |
+            openssl rand -hex 48
+      register: sha_key
+
+    - name: Copy probe-config directory
+      copy:
+        src: ../files/probe-config
+        dest: /root
+        owner: root
+        group: root
+        directory_mode: '0755'
+
+    - name: Copy alarm directory
+      copy:
+        src: files/alarm
+        dest: /root
+        owner: root
+        group: root
+        directory_mode: '0755'
+
+    - name: Copy all configuration files
+      template:
+        src: '{{ item.src }}'
+        dest: '{{ item.dest }}'
+        owner: '{{ item.owner }}'
+        group: '{{ item.group }}'
+        mode: '{{ item.mode }}'
+      loop:
+        - { src: '../templates/was-proxy.conf.j2', dest: '/etc/nginx/sites-available/was-proxy.conf', owner: 'root', group: 'root', mode: '0664' }
+        - { src: '../templates/was-ui-proxy.conf.j2', dest: '/etc/nginx/sites-available/was-ui-proxy.conf', owner: 'root', group: 'root', mode: '0664' }
+        - { src: '../templates/anomaly-proxy.conf.j2', dest: '/etc/nginx/sites-available/anomaly-proxy.conf', owner: 'root', group: 'root', mode: '0664' }
+        - { src: '../templates/hosts.j2', dest: '/etc/hosts', owner: 'root', group: 'root', mode: '0664'  }
+        - { src: '../templates/ui.properties.j2', dest: '/usr/lib/wifimon/config/ui.properties', owner: 'wifimon', group: 'root', mode: '0640'  }
+        - { src: '../templates/secure-processor.properties.j2', dest: '/usr/lib/wifimon/config/secure-processor.properties', owner: 'wifimon', group: 'root', mode: '0640'  }
+        - { src: '../templates/flask-proxy.conf.j2', dest: '/etc/nginx/sites-available/flask-proxy.conf', owner: 'root', group: 'root', mode: '0664' }
+        - { src: '../templates/app.py.j2', dest: '/root/probe-config/app.py', owner: 'root', group: 'root', mode: '0664'  }
+        - { src: '../templates/probe-config-secret.j2', dest: '/root/probe-config/.env', owner: 'root', group: 'root', mode: '0664'  }
+        - { src: '../templates/anomaly-secret.j2', dest: '/root/alarm/.env', owner: 'root', group: 'root', mode: '0664'  }
+
+    - name: Enable nginx configuration files
+      file:
+        src: '{{ item.src }}'
+        dest: '{{ item.dest }}'
+        owner: root
+        group: root
+        state: link
+      loop:
+        - { src: '/etc/nginx/sites-available/was-proxy.conf', dest: '/etc/nginx/sites-enabled/was-proxy.conf' }
+        - { src: '/etc/nginx/sites-available/was-ui-proxy.conf', dest: '/etc/nginx/sites-enabled/was-ui-proxy.conf' }
+        - { src: '/etc/nginx/sites-available/flask-proxy.conf', dest: '/etc/nginx/sites-enabled/flask-proxy.conf' }
+        - { src: '/etc/nginx/sites-available/anomaly-proxy.conf', dest: '/etc/nginx/sites-enabled/anomaly-proxy.conf' }
+
+    - name: Disable nginx default config
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+
+    - name: Reload nginx service
+      service:
+        name: nginx
+        enabled: yes
+        state: reloaded
+
+    - name: Obtain letsencrypt certificate
+      shell: |
+        certbot --nginx --non-interactive --agree-tos --redirect -m "{{ letsencrypt_admin_email }}" -d "{{ was_server_hostname }}"."{{ was_server_domainname }}" -d "{{ was_server_hostname }}"-ui."{{ was_server_domainname }}" -d "{{ was_server_hostname }}"-flask."{{ was_server_domainname }}" -d "{{ was_server_hostname }}"-anomaly."{{ was_server_domainname }}"
+
+    - name: Modify wifimon/elasticsearch.sh script for x-pack
+      replace:
+        path: /usr/lib/wifimon/elasticsearch.sh
+        regexp: "{{ item.regexp1 }}"
+        replace: "{{ item.replace }}"
+      with_items:
+        - { regexp1: 'curl', replace: 'curl -s -m 15 --connect-timeout 10 -uelastic:"{{ elastic_elasticsearch_password }}"'}
+        - { regexp1: 'http://localhost', replace: 'https://{{ was_server_hostname }}-elastic.{{ was_server_domainname }}'}
+        - { regexp1: ':9200', replace: ''}
+      no_log: true
+
+    - name: Create wifimon elasticsearch indices
+      command:
+        cmd: sh /usr/lib/wifimon/elasticsearch.sh
+
+    - name: Enable and start wifimon service
+      systemd:
+        daemon_reload: yes
+        name: wifimon
+        state: started
+        enabled: yes
+
+    - name: Wait for wifimon service to become up and running
+      uri:
+        url: 'https://{{ was_server_hostname }}-ui.{{ was_server_domainname }}/login'
+        method: HEAD
+        timeout: 10
+      register: wifimon_http_get_code
+      until: wifimon_http_get_code.status == 200
+      delay: 30
+      retries: 10
+
+    - name: Import wifimon dashboards into kibana
+      shell: |
+        curl -f -m 30 --connect-timeout 10 -u elastic:"{{ elastic_elasticsearch_password }}" -H "kbn-xsrf: true" --form file=@/usr/lib/wifimon/kibana-import.ndjson -X POST 'https://{{ was_server_hostname }}-kibana.{{ was_server_domainname }}/api/saved_objects/_import'
+      no_log: true
+
+    - name: Copy flask systemd unit file
+      copy:
+        src: ../files/flask.service
+        dest: /etc/systemd/system/flask.service
+        owner: root
+        group: root
+        mode: '0644'
+    
+    - name: Enable and start flask service
+      systemd:
+        daemon_reload: yes
+        name: flask
+        state: started
+        enabled: yes
+    
+    - name: Wait for flask service to become up and running
+      uri:
+        url: 'https://{{ was_server_hostname }}-flask.{{ was_server_domainname }}'
+        method: HEAD
+        timeout: 10
+      register: flask_http_get_code
+      until: flask_http_get_code.status == 200
+      delay: 30
+      retries: 3
+        
+    - name: Install hampel python package
+      shell: |
+        PIP_BREAK_SYSTEM_PACKAGES=1 pip install hampel
+
+    - name: Copy anomaly systemd unit file
+      copy:
+        src: files/anomaly.service
+        dest: /etc/systemd/system/anomaly.service
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Enable and start anomaly service
+      systemd:
+        daemon_reload: yes
+        name: anomaly
+        state: started
+        enabled: yes
+
+    - name: Wait for anomaly service to become up and running
+      uri:
+        url: 'https://{{ was_server_hostname }}-anomaly.{{ was_server_domainname }}'
+        method: HEAD
+        timeout: 10
+      register: anomaly_http_get_code
+      until: anomaly_http_get_code.status == 200
+      delay: 30
+      retries: 3
+
+    - name: WAS UI URL
+      debug:
+        msg:
+          - 'Access your WAS UI at:   https://{{ was_server_hostname }}-ui.{{ was_server_domainname }}'
+          - 'To download Raspbarry-PI OS image fro hardware probes, please visit: https://s3.grena.ge/raspbarry-image/whpv8.img.gz' 

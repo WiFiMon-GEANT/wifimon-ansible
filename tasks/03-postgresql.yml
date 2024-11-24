@@ -1,0 +1,142 @@
+- hosts: WAS_PGSQL
+  remote_user: root
+  gather_facts: yes
+  vars_files:
+    - ../vars/main.yml
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  tasks:
+    - name: Print error if not supported linux distribution is used for WAS_POSTGRESQL installation
+      fail: msg="You are trying to install WAS on not supported linux distribution. Please read the README file for details"
+      when:
+        - ansible_distribution_release != 'noble'
+        - ansible_distribution_release != 'jammy'
+        - ansible_distribution_release != 'focal'
+        - ansible_distribution_release != 'bookworm'
+        - ansible_distribution_release != 'bullseye'
+
+    - name: Ensure dig and gpg are installed
+      apt:
+        update_cache: true
+        name:
+          - dnsutils
+          - gpg
+        state: present
+      register: dnsutils_gpg_install_result
+      until: dnsutils_gpg_install_result is not failed
+      retries: 30
+      delay: 20
+
+    - name: Add PostgreSQL apt signing key
+      apt_key:
+        url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+        state: present
+        keyring: /etc/apt/trusted.gpg.d/pgdg.gpg
+
+    - name: Add PostgreSQL apt repo
+      apt_repository:
+        repo: deb http://apt.postgresql.org/pub/repos/apt/ {{ ansible_distribution_release }}-pgdg main
+        state: present
+        filename: pgdg
+        update_cache: false
+
+    - name: Install system updates
+      apt:
+        update_cache: true
+        upgrade: dist
+        dpkg_options: 'force-confold,force-confdef'
+
+    - name: Ensure all required packages are installed
+      apt:
+        update_cache: false
+        name: 
+          - postgresql-{{ postgresql_version }}
+          - python3-minimal
+          - python3-psycopg2
+          - python3-bcrypt
+        state: present
+        dpkg_options: 'force-confold,force-confdef'
+
+    - name: Remove useless packages from the cache
+      apt:
+        autoclean: yes
+
+    - name: Remove dependencies that are no longer required
+      apt:
+        autoremove: yes
+
+    - name: Modify postgresql.conf to let PostgreSQL listen on all IP addresses
+      replace:
+        path: /etc/postgresql/{{ postgresql_version }}/main/postgresql.conf
+        regexp: "{{ item.regexp1 }}"
+        replace: "{{ item.replace }}"
+      with_items:
+        - { regexp1: "#listen_addresses = 'localhost'", replace: "listen_addresses = '*'"}
+      no_log: true
+
+    - name: Allow authenticated access to PostgreSQL from any source address
+      blockinfile:
+        path: /etc/postgresql/{{ postgresql_version }}/main/pg_hba.conf
+        block: |
+          # IPv4 connections:
+          host    all             all             0.0.0.0/0            md5
+
+    - name: Restart postgresql service
+      service:
+        name: postgresql
+        enabled: yes
+        state: restarted
+
+    - name: Create PostgreSQL user for wifimon database 
+      postgresql_user:
+        name: "{{ wifimon_database_user }}"
+        password: "{{ wifimon_database_user_pass }}"
+      become: true
+      become_user: postgres
+
+    - name: Create PostgreSQL database for wifimon
+      postgresql_db:
+        name: "{{ wifimon_database_name }}"
+        owner: "{{ wifimon_database_user }}"
+        encoding: "UTF-8"
+        lc_collate: "en_US.UTF-8"
+        lc_ctype: "en_US.UTF-8"
+        template: template0
+      become: true
+      become_user: postgres
+
+    - name: Copy wifimon database schema dump file to target server
+      template:
+        src: ../templates/wifimon_database.sql.j2
+        dest: /tmp/wifimon_database.sql
+        owner: postgres
+        group: postgres
+        mode: '0600'
+
+    - name: Import wifimon database schema
+      postgresql_db:
+        name: "{{ wifimon_database_name }}"
+        login_user: "{{ wifimon_database_user }}"
+        login_password: "{{ wifimon_database_user_pass }}"
+        login_host: "{{ wifimon_database_host }}"
+        state: restore
+        target: /tmp/wifimon_database.sql
+
+    - name: Remove wifimon database dump file
+      file:
+        path: /tmp/wifimon_database.sql
+        state: absent
+
+    - name: Generate wifimon admin account password bcrypt hash
+      command:
+        cmd: |
+            python3 -c 'import bcrypt; print(bcrypt.hashpw(b"{{ wifimon_admin_pass }}", bcrypt.gensalt(rounds=15)).decode("ascii"))'
+      register: wifimon_admin_pass_hash
+
+    - name: Create wifimon admin account
+      command: psql -c "INSERT INTO users VALUES ('1', '{{ wifimon_admin_email }}', '{{ wifimon_admin_pass_hash.stdout }}', 'ADMIN');"
+      environment:
+        PGUSER: "{{ wifimon_database_user }}"
+        PGDATABASE: "{{ wifimon_database_name }}"
+        PGHOST: "{{ wifimon_database_host }}"
+        PGPASSWORD: "{{ wifimon_database_user_pass }}"

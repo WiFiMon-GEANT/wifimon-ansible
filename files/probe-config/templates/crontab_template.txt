@@ -1,0 +1,6 @@
+02,12,22,32,42,52 * * * * pi sleep $(shuf -n 1 -i 10-30) && /usr/local/bin/nettest.sh > /dev/null
+04,14,24,34,44,54 * * * * pi sleep $(shuf -n 1 -i 10-30) && /usr/local/bin/speedworker.sh > /dev/null
+06,16,26,36,46,56 * * * * pi sleep $(shuf -n 1 -i 10-30) && /usr/local/bin/boomerang.sh > /dev/null
+08,18,28,38,48,58 * * * * root  /root/wireless.py >> ~/cron.log 2>&1
+00,10,20,30,40,50 * * * * root  /root/twping_parser.py >> ~/cron.log 2>&1
+

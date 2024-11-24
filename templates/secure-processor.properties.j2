@@ -1,0 +1,55 @@
+################### WIFIMON SECURE-PROCESSOR CONFIGURATION ####################
+spring.config.use-legacy-processing=true
+
+######## application properties ########
+server.address=127.0.0.1
+# Insert host IP on which wifimon-agent will be listen
+server.port=9000
+server.forward-headers-strategy=FRAMEWORK
+server.tomcat.remoteip.protocol-header=X-Forwarded-Proto
+server.tomcat.remoteip.remote-ip-header=X-Forwarded-For
+#logging.file=./logs/secure-processor.log
+# default location to secure-processor logs is "./logs/secure-processor.log". If you want to change it, uncomment and set a different location/file name
+
+######## postgres properties ########
+spring.datasource.url=jdbc:postgresql://{{ wifimon_database_host }}:5432/{{ wifimon_database_name }}
+#e.g. spring.datasource.url=jdbc:postgresql://localhost:5432/wifimon_database
+spring.datasource.username={{ wifimon_database_user }}
+spring.datasource.password={{ wifimon_database_user_pass }}
+
+######## elasticsearch properties ########
+elasticsearch.clustername=elasticsearch
+# Insert the name of the elasticsearch cluster, e.g. elasticsearch.clustername=elasticsearch
+elasticsearch.host={{ was_server_hostname }}-elastic.{{ was_server_domainname }}
+# Insert the FQDN elasticsearch listens on
+elasticsearch.port=443
+elasticsearch.indexnamemeasurement=wifimon
+elasticsearch.typenamemeasurement=measurement
+elasticsearch.indexnameradius=radiuslogs
+elasticsearch.typenameradius=logs
+elasticsearch.indexnamedhcp=dhcplogs
+elasticsearch.typenamedhcp=dhcplog
+elasticsearch.indexnameprobes=probes
+elasticsearch.typenameprobes=measurement
+elasticsearch.indexnametwamp=twamp
+elasticsearch.typenametwamp=twamp
+
+######## ip encryption ###################
+sha.key={{ fingerprint_key }}
+# Insert the encryption key for the IPs (String type)
+
+######## X-Pack Configuration ############
+xpack.security.enabled=true
+ssl.http.user.username=elastic
+ssl.http.user.phrase={{ elastic_elasticsearch_password }}
+
+######## JSON Collector ##################
+json.collect=true
+json.collector=https://monitor.eduroam.org/wifimon_receiver/collector.php
+
+### etc ###
+
+spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+spring.jpa.properties.hibernate.temp.use_jdbc_metadata_defaults = false
+spring.jpa.generate-ddl=false
+spring.jpa.show-sql=true

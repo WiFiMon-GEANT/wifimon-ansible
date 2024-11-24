@@ -1,0 +1,9 @@
+server {
+        listen 80;
+	server_name {{ was_server_hostname }}-logstash.{{ was_server_domainname }};
+
+        access_log /var/log/nginx/logstash-access.log;
+        error_log /var/log/nginx/logstash-error.log;
+
+	root /var/www/html;
+}

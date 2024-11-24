@@ -1,0 +1,14 @@
+instances:
+  - name: elasticsearch
+    dns: {{ was_server_hostname }}-elastic.{{ was_server_domainname }}
+    ip: {{ ansible_all_ipv4_addresses[0] }}
+  - name: kibana
+    dns: {{ was_server_hostname }}-kibana.{{ was_server_domainname }}
+    ip: {{ ansible_all_ipv4_addresses[0] }}
+  - name: logstash
+    dns: {{ was_server_hostname }}.{{ was_server_domainname }}
+    ip: {{ ansible_all_ipv4_addresses[0] }}
+  - name: filebeat
+    dns: {{ was_server_hostname }}.{{ was_server_domainname }}
+    ip: {{ ansible_all_ipv4_addresses[0] }}
+

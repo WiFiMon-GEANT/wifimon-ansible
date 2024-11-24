@@ -1,0 +1,100 @@
+<html>
+<head>
+   <title>Probe Configuration Page</title>
+   <meta charset = "UTF-8">
+   <meta name = "description" content = "WiFiMon Hardware Probe Configuration Page">
+   <meta name = "viewport" content = "width = device-width, initial-scale = 1.0">
+   <link rel = "stylesheet" type = "text/css" href = "{{ url_for('static',filename='styles/mystyle.css') }}">
+</head>
+
+<body class = "center">
+    <h1 id = "heading">WiFiMon Hardware Probe Configuration Page</h1>
+    <br/>
+    <p class = "guidance-text">Fill the following information to configure the probe</p>
+    <br/>
+
+    <form method="POST">
+    
+      <div class = "questions">
+        <h2 class = "steps">Step 1</h2>
+        <p class = "descriptions">Probes are identified by an ID</p>
+        <p class = "sub-descriptions"> Insert WiFiMon Hardware Probe number: <input type = "text" name = "probe_number"> </p>
+      </div>
+
+      <span class = "center arrows">&#11015;</span>
+
+      <div class = "questions">
+        <h2 class = "steps">Step 2</h2>
+        <p class = "descriptions">Probes trigger measurements towards the WiFiMon Test Server (WTS)</p>
+        <p class = "sub-descriptions">Insert WTS FQDN or IP address: <input type = "text" name = "wts"></p>
+      </div>
+
+      <span class = "center arrows">&#11015;</span>
+
+      <div class = "questions">
+        <h2 class = "steps">Step 3</h2>
+        <p class = "descriptions">Measurement results are collected by the WiFiMon Analysis Server (WAS)</p>
+        <p class = "sub-descriptions">Insert WAS FQDN or IP address: <input type = "text"  name = "was"></p>
+      </div>
+
+      <span class = "center arrows">&#11015;</span>
+
+      <div class = "questions">
+        <h2 class = "steps">Step 4</h2>
+        <p class = "descriptions">If available, probes trigger TWAMP measurents towards a server</p>
+        <p class = "sub-descriptions">Insert TWAMP server FQDN or IP address: <input type = "text" name = "twamp_server"></p>
+      </div>
+
+      <span class = "center arrows">&#11015;</span>
+
+      <div class = "questions">
+        <h2 class = "steps">Step 5</h2>
+        <p class = "descriptions">Define the protocol used to communicate with WAS and WTS</p>
+        <input type = "radio" name="protocol" value = "http">
+        <label class = "sub-descriptions" for = "http">HTTP</label>
+        <input type = "radio" name="protocol" value = "https">
+        <label class = "sub-descriptions" for = "https">HTTPS</label>
+      </div>
+
+      <span class = "center arrows">&#11015;</span>
+
+      <div class = "questions">
+        <h2 class = "steps">Step 6</h2>
+        <p class = "descriptions">What is the probe location?</p>
+        <p class = "sub-descriptions">Insert probe location: <input type = "text" name = "location_name"></p>
+      </div>
+
+      <span class = "center arrows">&#11015;</span>
+
+      <div class = "questions">
+        <h2 class = "steps">Step 7</h2>
+        <p class = "descriptions">Where is the probe within the previous location?</p>
+        <p class = "sub-descriptions">Insert more specific location: <input type = "text" name = "test_device_location_description"></p>
+      </div>
+
+      <span class = "center arrows">&#11015;</span>
+
+      <div class = "questions">
+        <h2 class = "steps">Step 8</h2>
+        <p class = "descriptions"> Is the WiFiMon Hardware Probe behind a NAT network?</p>
+        <input type = "radio" name = "nat_network" value = "True">
+        <label class = "sub-descriptions" for = "True">Yes</label>
+        <input type = "radio" name = "nat_network" value = "False">
+        <label class = "sub-descriptions" for = "False">No</label>
+      </div>
+
+     <span class = "center arrows">&#11015;</span>
+
+     <div class = "questions">
+	  <h2 class = "steps">Step 9</h2>
+	  <p class = "descriptions"> Insert Authentication Token</p>
+	  <input type = "text" name = "token">
+     </div>
+
+      <input id = "submit-button" type = "submit" value = "Submit WiFiMon Hardware Probe Configuration">
+    </form>
+
+    <img class = "center" src = "/static/wifimon-logo.png" alt = "WiFiMon Logo" width = "auto" height = "auto">
+
+</body>
+</html>

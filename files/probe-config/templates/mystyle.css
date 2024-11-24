@@ -1,0 +1,75 @@
+* {
+    text-align : center;
+}
+
+body {
+    background-color : rgb(220, 220, 239);
+}
+
+.steps {
+    font-size : 36px;
+    color : #FF0000;
+}
+
+#heading {
+    font-size : 42px;
+    font-weight : bold;
+    color : charcoal;
+}
+
+.descriptions {
+    font-size : 28px;
+    font-weight : bold;
+    color : black;
+}
+
+.sub-descriptions {
+    font-size : 24px;
+    font-weight : bold;
+    color : rgb(00, 00, 100);
+}
+
+.guidance-text {
+    padding : 10px;
+    font-size : 30px;
+    font-weight : bold;
+    border : 5px solid black;
+    margin : 20px;
+    background-color : rgb(200, 0, 0);
+    width : 900px;
+    color : white;
+    border-radius : 25px;
+}
+
+.center {
+  display : block;
+  margin : 20px;
+  width : 900px;
+}
+
+.questions {
+  padding : 10px;
+  width : 900px;
+  height : 200px;
+  border : 5px solid black;
+  background-color : #85B0BE;
+  margin : 20px;
+  border-radius : 25px;
+}
+
+#submit-button {
+  padding : 10px;
+  font-size : 30px;
+  font-weight: bold;
+  background-color : green;
+  border : 5px solid black;
+  color : white;
+  margin : 20px;
+  cursor : pointer;
+  width : 932px;
+  border-radius : 36px;
+}
+
+.arrows {
+    font-size: 150px;
+}
