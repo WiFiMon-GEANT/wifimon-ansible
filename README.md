@@ -22,7 +22,7 @@ NOTE: This repository has been developed by GRENA engineers for the WiFiMon team
 
 ##### Clone the project by running:  
 
-	git clone https://gitlab.grena.ge/nugzar/wifimon-ansible.git
+	git clone https://github.com/WiFiMon-GEANT/wifimon-ansible.git
 
 ##### CD to project directory:
 
